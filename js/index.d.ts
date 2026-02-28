@@ -30,7 +30,7 @@ export type AttestationPreference = 'none' | 'indirect' | 'direct' | 'enterprise
  * Credential descriptor for excludeCredentials / allowCredentials
  */
 export interface CredentialDescriptor {
-  /** Base64-encoded credential ID */
+  /** Base64 or base64url-encoded credential ID */
   id: string;
   /** Optional transports: 'usb', 'nfc', 'ble', 'internal', 'hybrid' */
   transports?: string[];
@@ -123,6 +123,10 @@ export interface CreateCredentialOptions {
   displayName: string;
   /** Which authenticator types to offer (default: both ['platform', 'securityKey']) */
   authenticators?: AuthenticatorType[];
+  /** Optional server-provided challenge (base64url) */
+  challenge?: string;
+  /** Optional timeout passthrough in milliseconds */
+  timeout?: number;
   /** Optional list of existing credentials to prevent re-registration */
   excludeCredentials?: CredentialDescriptor[];
   /** User verification requirement (default: 'preferred') */
@@ -152,6 +156,10 @@ export interface GetCredentialOptions {
   rpId: string;
   /** Which authenticator types to offer (default: both ['platform', 'securityKey']) */
   authenticators?: AuthenticatorType[];
+  /** Optional server-provided challenge (base64url) */
+  challenge?: string;
+  /** Optional timeout passthrough in milliseconds */
+  timeout?: number;
   /** Optional list of credentials to allow (if not set, discovers available credentials) */
   allowCredentials?: CredentialDescriptor[];
   /** User verification requirement (default: 'preferred') */
@@ -181,6 +189,10 @@ export interface PlatformRegistrationCredential {
   type: 'platform';
   /** Base64-encoded credential ID - unique identifier for this credential */
   credentialID: string;
+  /** Alias of credentialID */
+  id: string;
+  /** Alias of credentialID */
+  rawId: string;
   /**
    * Base64-encoded CBOR (Concise Binary Object Representation) with:
    * - authData: rpIdHash(32), flags(1), signCount(4), attestedCredentialData
@@ -191,11 +203,18 @@ export interface PlatformRegistrationCredential {
   attestationObject: string;
   /** Base64-encoded JSON with challenge, origin, and type (webauthn.create) */
   clientDataJSON: string;
+  /** WebAuthn-style response aliases */
+  response: {
+    clientDataJSON: string;
+    attestationObject: string;
+  };
   /**
    * Authenticator attachment type: 'platform' or 'crossPlatform'
    * @remarks macOS 13.5+
    */
   attachment?: string;
+  /** Alias of attachment */
+  authenticatorAttachment?: string;
   /**
    * Whether authenticator supports largeBlob extension (platform keys only)
    * @remarks macOS 14.0+
@@ -219,6 +238,10 @@ export interface SecurityKeyRegistrationCredential {
   type: 'securityKey';
   /** Base64-encoded credential ID - unique identifier for this credential */
   credentialID: string;
+  /** Alias of credentialID */
+  id: string;
+  /** Alias of credentialID */
+  rawId: string;
   /**
    * Base64-encoded CBOR (Concise Binary Object Representation) with:
    * - authData: rpIdHash(32), flags(1), signCount(4), attestedCredentialData
@@ -229,6 +252,11 @@ export interface SecurityKeyRegistrationCredential {
   attestationObject: string;
   /** Base64-encoded JSON with challenge, origin, and type (webauthn.create) */
   clientDataJSON: string;
+  /** WebAuthn-style response aliases */
+  response: {
+    clientDataJSON: string;
+    attestationObject: string;
+  };
   /**
    * Supported transports: 'usb', 'nfc', 'ble', 'internal', 'hybrid'
    * @remarks macOS 14.5+
@@ -250,17 +278,30 @@ export interface PlatformAssertionCredential {
   userID: string;
   /** Base64-encoded credential ID that was used for authentication */
   credentialID: string;
+  /** Alias of credentialID */
+  id: string;
+  /** Alias of credentialID */
+  rawId: string;
   /** Base64-encoded authenticator data (rpIdHash, flags, signCount, extensions) */
   authenticatorData: string;
   /** Base64-encoded JSON with challenge, origin, and type (webauthn.get) */
   clientDataJSON: string;
   /** Base64-encoded signature over authenticatorData and clientDataJSON hash */
   signature: string;
+  /** WebAuthn-style response aliases */
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle: string;
+  };
   /**
    * Authenticator attachment type: 'platform' or 'crossPlatform'
    * @remarks macOS 13.5+
    */
   attachment?: string;
+  /** Alias of attachment */
+  authenticatorAttachment?: string;
   /**
    * LargeBlob operation result (read data or write status).
    * Only available for platform authenticators.
@@ -288,12 +329,23 @@ export interface SecurityKeyAssertionCredential {
   userID: string;
   /** Base64-encoded credential ID that was used for authentication */
   credentialID: string;
+  /** Alias of credentialID */
+  id: string;
+  /** Alias of credentialID */
+  rawId: string;
   /** Base64-encoded authenticator data (rpIdHash, flags, signCount, extensions) */
   authenticatorData: string;
   /** Base64-encoded JSON with challenge, origin, and type (webauthn.get) */
   clientDataJSON: string;
   /** Base64-encoded signature over authenticatorData and clientDataJSON hash */
   signature: string;
+  /** WebAuthn-style response aliases */
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle: string;
+  };
   /**
    * Whether legacy FIDO U2F appID extension was used
    * @remarks macOS 14.5+
