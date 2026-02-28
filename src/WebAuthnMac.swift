@@ -57,7 +57,12 @@ import AuthenticationServices
             }
             if error.code == ASAuthorizationError.invalidResponse.rawValue { return "invalidResponse" }
             if error.code == ASAuthorizationError.notHandled.rawValue { return "notHandled" }
-            if error.code == ASAuthorizationError.failed.rawValue { return "failed" }
+            if error.code == ASAuthorizationError.failed.rawValue {
+                if message.contains("not associated with domain") || message.contains("application identifier") {
+                    return "domain-not-associated"
+                }
+                return "failed"
+            }
         }
         if error.domain == "WKErrorDomain" {
             if error.code == 8 { return "exclude-credentials-match" }
