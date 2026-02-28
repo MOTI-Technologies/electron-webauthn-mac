@@ -131,7 +131,7 @@ The repository includes an [example Electron application](example-electron-app/)
 
 ```bash
 cd example-electron-app
-npm install
+npm install --ignore-scripts=false
 npm run build:mac
 open dist/mac-arm64/WebAuthnDemo.app
 ```

@@ -8,6 +8,7 @@
   "scripts": {
     "clean": "rm -rf build build_swift native",
     "build": "node-gyp configure && node-gyp build && mkdir -p native && cp build/Release/webauthn_mac_addon.node native/",
+    "prepare": "npm run build",
     "rebuild": "npm run clean && npm run build",
     "test:harness": "node example-electron-app/regression-harness.js",
     "prepublishOnly": "npm run build"
