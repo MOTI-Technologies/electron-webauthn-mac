@@ -14,6 +14,8 @@ struct PasskeyRegistrationOptions {
     let userId: String                                          // Stable user identifier (max 64 bytes recommended)
     let name: String                                            // User's name (used for both platform and security key authentication)
     let displayName: String                                     // User's display name (used for security key only)
+    var challenge: Data? = nil                                  // Optional WebAuthn challenge (base64url-decoded bytes)
+    var timeout: Double? = nil                                  // Optional timeout passthrough (milliseconds)
     var authenticators: [AuthenticatorType] = AuthenticatorType.allCases  // Which authenticator types to offer (default: both)
     var excludeCredentials: [CredentialDescriptor]? = nil       // Optional list of existing credentials to prevent re-registration
     var userVerification: UserVerificationRequirement = .preferred  // User verification requirement (default: .preferred)
@@ -28,6 +30,8 @@ struct PasskeyRegistrationOptions {
 /// Options for passkey assertion (WebAuthn PublicKeyCredentialRequestOptions)
 struct PasskeyAssertionOptions {
     let rpId: String                                            // Relying party identifier (domain)
+    var challenge: Data? = nil                                  // Optional WebAuthn challenge (base64url-decoded bytes)
+    var timeout: Double? = nil                                  // Optional timeout passthrough (milliseconds)
     var authenticators: [AuthenticatorType] = AuthenticatorType.allCases  // Which authenticator types to offer (default: both)
     var allowCredentials: [CredentialDescriptor]? = nil         // Optional list of credentials to allow (if nil, discovers available credentials)
     var userVerification: UserVerificationRequirement = .preferred   // User verification requirement (default: .preferred)
@@ -170,11 +174,23 @@ struct CredentialDescriptor {
         self.transports = transports
     }
 
-    /// Convenience initializer from base64-encoded credential ID.
-    /// - Note: Returns empty Data if base64 decoding fails. Consider using init(id:transports:) with validated Data instead.
+    /// Convenience initializer from base64/base64url-encoded credential ID.
+    /// - Note: Returns empty Data if decoding fails. Consider using init(id:transports:) with validated Data instead.
     init(base64Id: String, transports: [String]? = nil) {
-        self.id = Data(base64Encoded: base64Id) ?? Data()
+        self.id = CredentialDescriptor.decodeBase64OrBase64URL(base64Id) ?? Data()
         self.transports = transports
+    }
+
+    private static func decodeBase64OrBase64URL(_ encoded: String) -> Data? {
+        if let decoded = Data(base64Encoded: encoded) {
+            return decoded
+        }
+        var normalized = encoded.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        if remainder != 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
     }
 }
 
@@ -204,7 +220,7 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
         onSuccess: @escaping (RegistrationCredential) -> Void,
         onError: @escaping (Error) -> Void
     ) {
-        let challenge = randomChallenge(length: 32)
+        let challenge = options.challenge ?? randomChallenge(length: 32)
         guard let userIDData = options.userId.data(using: .utf8) else {
             let error = NSError(
                 domain: "PasskeyManager",
@@ -222,6 +238,9 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
             name: options.name,
             userID: userIDData
         )
+        if let timeout = options.timeout {
+            applyTimeoutIfSupported(timeout, to: platformRegistration)
+        }
 
         // Configure user verification
         platformRegistration.userVerificationPreference = options.userVerification.asPreference
@@ -269,6 +288,9 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
             name: options.name,
             userID: userIDData
         )
+        if let timeout = options.timeout {
+            applyTimeoutIfSupported(timeout, to: securityKeyRegistration)
+        }
 
         // Algorithm: ES256 (only algorithm supported by Apple SDK)
         securityKeyRegistration.credentialParameters = [
@@ -346,10 +368,13 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
         onSuccess: @escaping (AssertionCredential) -> Void,
         onError: @escaping (Error) -> Void
     ) {
-        let challenge = randomChallenge(length: 32)
+        let challenge = options.challenge ?? randomChallenge(length: 32)
 
         let platformProvider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: options.rpId)
         let platformAssertion = platformProvider.createCredentialAssertionRequest(challenge: challenge)
+        if let timeout = options.timeout {
+            applyTimeoutIfSupported(timeout, to: platformAssertion)
+        }
 
         // Configure user verification
         platformAssertion.userVerificationPreference = options.userVerification.asPreference
@@ -390,6 +415,9 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
         // External security key assertion (largeBlob and PRF not supported on security keys at this time)
         let securityKeyProvider = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(relyingPartyIdentifier: options.rpId)
         let securityKeyAssertion = securityKeyProvider.createCredentialAssertionRequest(challenge: challenge)
+        if let timeout = options.timeout {
+            applyTimeoutIfSupported(timeout, to: securityKeyAssertion)
+        }
 
         // Configure user verification for security key
         securityKeyAssertion.userVerificationPreference = options.userVerification.asPreference
@@ -495,6 +523,12 @@ final class PasskeyManager: NSObject, ASAuthorizationControllerDelegate, ASAutho
         var bytes = [UInt8](repeating: 0, count: length)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return Data(bytes)
+    }
+
+    private func applyTimeoutIfSupported(_ timeout: Double, to request: NSObject) {
+        if request.responds(to: Selector("setTimeout:")) {
+            request.setValue(timeout, forKey: "timeout")
+        }
     }
 
     /// Encodes a `SymmetricKey` into a Base64 string. Useful for PRF outputs.

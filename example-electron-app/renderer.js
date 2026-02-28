@@ -22,9 +22,27 @@ function base64Encode(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
+function base64UrlEncode(str) {
+  return base64Encode(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
 // Utility: Base64 decode string
 function base64Decode(str) {
   return decodeURIComponent(escape(atob(str)));
+}
+
+function mockServerChallenge() {
+  return base64UrlEncode(`mock-server-challenge-${Date.now()}`);
+}
+
+function toVerificationPayload(result) {
+  return {
+    id: result.id || result.credentialID,
+    rawId: result.rawId || result.credentialID,
+    type: 'public-key',
+    authenticatorAttachment: result.authenticatorAttachment || result.attachment,
+    response: result.response
+  };
 }
 
 
@@ -56,6 +74,45 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       displayResult('basicResults', result);
+    } catch (error) {
+      displayResult('basicResults', error.message || error, true);
+    }
+  });
+
+  document.getElementById('serverChallengeRegister')?.addEventListener('click', async () => {
+    try {
+      const challenge = mockServerChallenge();
+      const result = await window.exposedAddon.createCredential({
+        rpId: RP_ID,
+        userId: generateUserId(),
+        name: 'Server Challenge User',
+        displayName: 'Server Challenge User',
+        challenge
+      });
+
+      displayResult('basicResults', {
+        providedChallenge: challenge,
+        verificationPayload: toVerificationPayload(result),
+        rawResult: result
+      });
+    } catch (error) {
+      displayResult('basicResults', error.message || error, true);
+    }
+  });
+
+  document.getElementById('serverChallengeAuthenticate')?.addEventListener('click', async () => {
+    try {
+      const challenge = mockServerChallenge();
+      const result = await window.exposedAddon.getCredential({
+        rpId: RP_ID,
+        challenge
+      });
+
+      displayResult('basicResults', {
+        providedChallenge: challenge,
+        verificationPayload: toVerificationPayload(result),
+        rawResult: result
+      });
     } catch (error) {
       displayResult('basicResults', error.message || error, true);
     }

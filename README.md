@@ -220,8 +220,10 @@ Creates a new passkey credential using Touch ID, iCloud Keychain, or an external
 | `userId` | string | ✅ | Stable user identifier (max 64 bytes recommended) |
 | `name` | string | ✅ | User's name (used for both platform and security key authentication) |
 | `displayName` | string | ✅ | User's display name (used for security key only) |
+| `challenge` | string | | Optional server challenge (base64url). If omitted, challenge is generated internally as fallback |
+| `timeout` | number | | Optional timeout passthrough in milliseconds |
 | `authenticators` | string[] | | Which authenticator types to offer: `['platform', 'securityKey']` (default: both) |
-| `excludeCredentials` | object[] | | Existing credentials to prevent re-registration |
+| `excludeCredentials` | object[] | | Existing credentials to prevent re-registration (`id` supports base64 or base64url) |
 | `userVerification` | string | | `'required'`, `'preferred'` (default), or `'discouraged'` |
 | `attestation` | string | | `'none'` (default), `'indirect'`, `'direct'`, or `'enterprise'` |
 | `largeBlobRequired` | boolean | | Require largeBlob support (macOS 14.0+, platform keys only) |
@@ -234,9 +236,16 @@ Creates a new passkey credential using Touch ID, iCloud Keychain, or an external
 {
   type: "platform",
   credentialID: string,           // Base64-encoded credential ID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   attestationObject: string,      // Base64-encoded CBOR attestation
   clientDataJSON: string,         // Base64-encoded client data
+  response: {                     // WebAuthn-style alias payload
+    clientDataJSON: string,
+    attestationObject: string
+  },
   attachment?: string,            // "platform" or "crossPlatform" (macOS 13.5+)
+  authenticatorAttachment?: string, // Alias of attachment
   largeBlobSupported?: boolean,   // Whether largeBlob is supported (macOS 14.0+)
   prfEnabled?: boolean,           // Whether PRF extension is supported (macOS 15.0+)
   prfFirst?: string,              // Base64-encoded first PRF output (if requested)
@@ -249,8 +258,14 @@ Creates a new passkey credential using Touch ID, iCloud Keychain, or an external
 {
   type: "securityKey",
   credentialID: string,           // Base64-encoded credential ID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   attestationObject: string,      // Base64-encoded CBOR attestation
   clientDataJSON: string,         // Base64-encoded client data
+  response: {                     // WebAuthn-style alias payload
+    clientDataJSON: string,
+    attestationObject: string
+  },
   transports?: string[]           // ["usb", "nfc", "ble", "internal", "hybrid"] (macOS 14.5+)
 }
 ```
@@ -267,8 +282,10 @@ Authenticates a user using an existing passkey.
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `rpId` | string | ✅ | Relying Party identifier (your domain) |
+| `challenge` | string | | Optional server challenge (base64url). If omitted, challenge is generated internally as fallback |
+| `timeout` | number | | Optional timeout passthrough in milliseconds |
 | `authenticators` | string[] | | Which authenticator types to offer: `['platform', 'securityKey']` (default: both) |
-| `allowCredentials` | object[] | | Specific credentials to allow (if not set, discovers available) |
+| `allowCredentials` | object[] | | Specific credentials to allow (if not set, discovers available, `id` supports base64 or base64url) |
 | `userVerification` | string | | `'required'`, `'preferred'` (default), or `'discouraged'` |
 | `largeBlobOperation` | object | | `{ read: true }` or `{ write: "base64data" }` (macOS 14.0+, platform keys only) |
 | `prf` | object | | `{ eval: { first: "base64", second?: "base64" } }` (macOS 15.0+, platform keys only) |
@@ -281,10 +298,19 @@ Authenticates a user using an existing passkey.
   type: "platform",
   userID: string,                 // Base64-encoded user handle
   credentialID: string,           // Base64-encoded credential ID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   authenticatorData: string,      // Base64-encoded authenticator data
   clientDataJSON: string,         // Base64-encoded client data
   signature: string,              // Base64-encoded signature
+  response: {                     // WebAuthn-style alias payload
+    clientDataJSON: string,
+    authenticatorData: string,
+    signature: string,
+    userHandle?: string | null
+  },
   attachment?: string,            // "platform" or "crossPlatform" (macOS 13.5+)
+  authenticatorAttachment?: string, // Alias of attachment
   largeBlobResult?: object,       // { type: 'read', data } or { type: 'write', success } (macOS 14.0+)
   prfEnabled?: boolean,           // Whether PRF extension was used (macOS 15.0+)
   prfFirst?: string,              // Base64-encoded first PRF output
@@ -298,9 +324,17 @@ Authenticates a user using an existing passkey.
   type: "securityKey",
   userID: string,                 // Base64-encoded user handle
   credentialID: string,           // Base64-encoded credential ID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   authenticatorData: string,      // Base64-encoded authenticator data
   clientDataJSON: string,         // Base64-encoded client data
   signature: string,              // Base64-encoded signature
+  response: {                     // WebAuthn-style alias payload
+    clientDataJSON: string,
+    authenticatorData: string,
+    signature: string,
+    userHandle?: string | null
+  },
   appID?: boolean                 // Whether legacy FIDO U2F appID was used (macOS 14.5+)
 }
 ```
@@ -316,6 +350,11 @@ Opens the macOS system password manager (_Settings → Passwords_).
 **Parameters:** None
 
 **Returns:** `void`
+
+### Error codes
+
+Native authorization failures are normalized to stable JavaScript `error.code` values:
+`cancelled`, `domain-not-associated`, `exclude-credentials-match`, `no-credentials-available`, `invalidResponse`, `notHandled`, `failed`, `unknown`.
 
 ## macOS Platform Quirks
 
@@ -360,9 +399,9 @@ This addon differs from the standard browser-based Web Authentication API (`navi
 
 | Parameter | Browser WebAuthn | This Addon |
 |-----------|------------------|------------|
-| `challenge` | Server-generated, passed to API | Auto-generated internally (32 bytes via `SecRandomCopyBytes`). Retrieve from `clientDataJSON` if needed. |
+| `challenge` | Server-generated, passed to API | Server-provided base64url challenge is supported; auto-generated internally (32 bytes via `SecRandomCopyBytes`) only when omitted. |
 | `rp.name` | Human-readable RP name shown to user | Not supported — macOS shows `rpId` domain instead |
-| `timeout` | Configurable operation timeout | Not supported — system manages timeouts internally |
+| `timeout` | Configurable operation timeout | Optional passthrough (system may ignore) |
 | `pubKeyCredParams` | Multiple algorithms supported | ES256 only (hardcoded by Apple) |
 | PRF, LargeBlob | Available on all authenticators | Platform authenticators only — see [Platform vs Security Key](#platform-vs-security-key-authenticators) |
 

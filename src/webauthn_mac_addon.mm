@@ -28,6 +28,7 @@ private:
         Napi::Promise::Deferred* deferred;
         void* result;  // CFRetained NSDictionary
         std::string error;
+        std::string errorCode;
         bool hasError;
 
         ~AsyncDictData() {
@@ -145,7 +146,10 @@ private:
                     Napi::Env napi_env(env);
                     Napi::HandleScope scope(napi_env);
                     if (asyncData->hasError) {
-                        asyncData->deferred->Reject(Napi::Error::New(napi_env, asyncData->error).Value());
+                        Napi::Error napiError = Napi::Error::New(napi_env, asyncData->error);
+                        std::string code = asyncData->errorCode.empty() ? "unknown" : asyncData->errorCode;
+                        napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, code));
+                        asyncData->deferred->Reject(napiError.Value());
                     } else {
                         Napi::Object result = NSDictionaryToNapiObject(napi_env, asyncData->result);
                         asyncData->deferred->Resolve(result);
@@ -164,10 +168,12 @@ private:
         }
 
         [WebAuthnMacBridge createCredential:options completion:^(NSDictionary* result, NSError* error) {
+            NSString* code = error ? [error.userInfo objectForKey:@"jsCode"] : nil;
             auto* asyncData = new AsyncDictData{
                 deferred,
                 result ? (void*)CFBridgingRetain(result) : nullptr,
                 error ? std::string([[error localizedDescription] UTF8String]) : "",
+                code ? std::string([code UTF8String]) : "",
                 error != nil
             };
 
@@ -209,7 +215,10 @@ private:
                     Napi::Env napi_env(env);
                     Napi::HandleScope scope(napi_env);
                     if (asyncData->hasError) {
-                        asyncData->deferred->Reject(Napi::Error::New(napi_env, asyncData->error).Value());
+                        Napi::Error napiError = Napi::Error::New(napi_env, asyncData->error);
+                        std::string code = asyncData->errorCode.empty() ? "unknown" : asyncData->errorCode;
+                        napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, code));
+                        asyncData->deferred->Reject(napiError.Value());
                     } else {
                         Napi::Object result = NSDictionaryToNapiObject(napi_env, asyncData->result);
                         asyncData->deferred->Resolve(result);
@@ -228,10 +237,12 @@ private:
         }
 
         [WebAuthnMacBridge getCredential:options completion:^(NSDictionary* result, NSError* error) {
+            NSString* code = error ? [error.userInfo objectForKey:@"jsCode"] : nil;
             auto* asyncData = new AsyncDictData{
                 deferred,
                 result ? (void*)CFBridgingRetain(result) : nullptr,
                 error ? std::string([[error localizedDescription] UTF8String]) : "",
+                code ? std::string([code UTF8String]) : "",
                 error != nil
             };
 

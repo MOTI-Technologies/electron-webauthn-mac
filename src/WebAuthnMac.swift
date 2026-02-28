@@ -1,12 +1,95 @@
 import Foundation
 import Cocoa
+import AuthenticationServices
 
 @objc public class WebAuthnMac: NSObject {
 
     // MARK: - Error Helper
 
     private static func makeError(_ method: String, _ message: String) -> NSError {
-        return NSError(domain: "WebAuthnMac", code: 1, userInfo: [NSLocalizedDescriptionKey: "[WebAuthnMac.swift] \(method): \(message)"])
+        return NSError(
+            domain: "WebAuthnMac",
+            code: 1,
+            userInfo: [
+                NSLocalizedDescriptionKey: "[WebAuthnMac.swift] \(method): \(message)",
+                "jsCode": "failed"
+            ]
+        )
+    }
+
+    private static func decodeBase64OrBase64URL(_ encoded: String) -> Data? {
+        if let decoded = Data(base64Encoded: encoded) {
+            return decoded
+        }
+        var normalized = encoded.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        if remainder != 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
+    }
+
+    private static func makeNormalizedError(_ method: String, _ error: Error) -> NSError {
+        let nsError = error as NSError
+        let code = normalizedErrorCode(nsError)
+        let message = "[WebAuthnMac.swift] \(method): \(nsError.localizedDescription)"
+        return NSError(
+            domain: "WebAuthnMac",
+            code: nsError.code,
+            userInfo: [
+                NSLocalizedDescriptionKey: message,
+                "jsCode": code
+            ]
+        )
+    }
+
+    private static func normalizedErrorCode(_ error: NSError) -> String {
+        let message = error.localizedDescription.lowercased()
+        if error.domain == ASAuthorizationError.errorDomain {
+            if error.code == 1006 {
+                return "exclude-credentials-match"
+            }
+            if error.code == ASAuthorizationError.canceled.rawValue {
+                if message.contains("no credentials available") || message.contains("no passkeys") {
+                    return "no-credentials-available"
+                }
+                return "cancelled"
+            }
+            if error.code == ASAuthorizationError.invalidResponse.rawValue { return "invalidResponse" }
+            if error.code == ASAuthorizationError.notHandled.rawValue { return "notHandled" }
+            if error.code == ASAuthorizationError.failed.rawValue {
+                if message.contains("not associated with domain") || message.contains("application identifier") {
+                    return "domain-not-associated"
+                }
+                return "failed"
+            }
+        }
+        if error.domain == "WKErrorDomain" {
+            if error.code == 8 { return "exclude-credentials-match" }
+            if error.code == 31 { return "failed" }
+        }
+        if message.contains("not associated with domain") || message.contains("application identifier") {
+            return "domain-not-associated"
+        }
+        if message.contains("already exists") || message.contains("duplicate") || message.contains("exclude") {
+            return "exclude-credentials-match"
+        }
+        if message.contains("no credentials") || message.contains("no passkeys") {
+            return "no-credentials-available"
+        }
+        if message.contains("invalid response") {
+            return "invalidResponse"
+        }
+        if message.contains("not handled") {
+            return "notHandled"
+        }
+        if message.contains("cancel") {
+            return "cancelled"
+        }
+        if message.contains("fail") {
+            return "failed"
+        }
+        return "unknown"
     }
 
     // MARK: - Create Credential
@@ -56,6 +139,18 @@ import Cocoa
                     let transports = dict["transports"] as? [String]
                     return CredentialDescriptor(base64Id: id, transports: transports)
                 }
+            }
+
+            if let challengeBase64URL = optionsDict["challenge"] as? String {
+                guard let challenge = decodeBase64OrBase64URL(challengeBase64URL) else {
+                    completion(nil, makeError("createCredential()", "challenge must be valid base64url"))
+                    return
+                }
+                options.challenge = challenge
+            }
+
+            if let timeout = optionsDict["timeout"] as? NSNumber {
+                options.timeout = timeout.doubleValue
             }
 
             if let userVerification = optionsDict["userVerification"] as? String {
@@ -108,7 +203,7 @@ import Cocoa
                     completion(result, nil)
                 },
                 onError: { error in
-                    completion(nil, makeError("createCredential()", error.localizedDescription))
+                    completion(nil, makeNormalizedError("createCredential()", error))
                 }
             )
         }
@@ -144,6 +239,18 @@ import Cocoa
                     let transports = dict["transports"] as? [String]
                     return CredentialDescriptor(base64Id: id, transports: transports)
                 }
+            }
+
+            if let challengeBase64URL = optionsDict["challenge"] as? String {
+                guard let challenge = decodeBase64OrBase64URL(challengeBase64URL) else {
+                    completion(nil, makeError("getCredential()", "challenge must be valid base64url"))
+                    return
+                }
+                options.challenge = challenge
+            }
+
+            if let timeout = optionsDict["timeout"] as? NSNumber {
+                options.timeout = timeout.doubleValue
             }
 
             if let userVerification = optionsDict["userVerification"] as? String {
@@ -188,7 +295,7 @@ import Cocoa
                     completion(result, nil)
                 },
                 onError: { error in
-                    completion(nil, makeError("getCredential()", error.localizedDescription))
+                    completion(nil, makeNormalizedError("getCredential()", error))
                 }
             )
         }
@@ -212,10 +319,17 @@ import Cocoa
         case .platform(let credentialID, let attestationObject, let clientDataJSON, let attachment, let largeBlobSupported, let prfEnabled, let prfFirst, let prfSecond):
             dict["type"] = "platform"
             dict["credentialID"] = credentialID
+            dict["id"] = credentialID
+            dict["rawId"] = credentialID
             dict["attestationObject"] = attestationObject
             dict["clientDataJSON"] = clientDataJSON
+            dict["response"] = [
+                "clientDataJSON": clientDataJSON,
+                "attestationObject": attestationObject
+            ]
             if let attachment = attachment {
                 dict["attachment"] = attachment
+                dict["authenticatorAttachment"] = attachment
             }
             if let largeBlobSupported = largeBlobSupported {
                 dict["largeBlobSupported"] = largeBlobSupported
@@ -233,8 +347,14 @@ import Cocoa
         case .securityKey(let credentialID, let attestationObject, let clientDataJSON, let transports):
             dict["type"] = "securityKey"
             dict["credentialID"] = credentialID
+            dict["id"] = credentialID
+            dict["rawId"] = credentialID
             dict["attestationObject"] = attestationObject
             dict["clientDataJSON"] = clientDataJSON
+            dict["response"] = [
+                "clientDataJSON": clientDataJSON,
+                "attestationObject": attestationObject
+            ]
             if let transports = transports {
                 dict["transports"] = transports
             }
@@ -251,11 +371,20 @@ import Cocoa
             dict["type"] = "platform"
             dict["userID"] = userID
             dict["credentialID"] = credentialID
+            dict["id"] = credentialID
+            dict["rawId"] = credentialID
             dict["authenticatorData"] = authenticatorData
             dict["clientDataJSON"] = clientDataJSON
             dict["signature"] = signature
+            dict["response"] = [
+                "clientDataJSON": clientDataJSON,
+                "authenticatorData": authenticatorData,
+                "signature": signature,
+                "userHandle": userID
+            ]
             if let attachment = attachment {
                 dict["attachment"] = attachment
+                dict["authenticatorAttachment"] = attachment
             }
             if let largeBlobResult = largeBlobResult {
                 switch largeBlobResult {
@@ -285,9 +414,17 @@ import Cocoa
             dict["type"] = "securityKey"
             dict["userID"] = userID
             dict["credentialID"] = credentialID
+            dict["id"] = credentialID
+            dict["rawId"] = credentialID
             dict["authenticatorData"] = authenticatorData
             dict["clientDataJSON"] = clientDataJSON
             dict["signature"] = signature
+            dict["response"] = [
+                "clientDataJSON": clientDataJSON,
+                "authenticatorData": authenticatorData,
+                "signature": signature,
+                "userHandle": userID
+            ]
             if let appID = appID {
                 dict["appID"] = appID
             }
