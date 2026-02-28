@@ -49,10 +49,19 @@ import AuthenticationServices
             if error.code == 1006 {
                 return "exclude-credentials-match"
             }
-            if error.code == ASAuthorizationError.canceled.rawValue { return "cancelled" }
+            if error.code == ASAuthorizationError.canceled.rawValue {
+                if message.contains("no credentials available") || message.contains("no passkeys") {
+                    return "no-credentials-available"
+                }
+                return "cancelled"
+            }
             if error.code == ASAuthorizationError.invalidResponse.rawValue { return "invalidResponse" }
             if error.code == ASAuthorizationError.notHandled.rawValue { return "notHandled" }
             if error.code == ASAuthorizationError.failed.rawValue { return "failed" }
+        }
+        if error.domain == "WKErrorDomain" {
+            if error.code == 8 { return "exclude-credentials-match" }
+            if error.code == 31 { return "failed" }
         }
         if message.contains("not associated with domain") || message.contains("application identifier") {
             return "domain-not-associated"

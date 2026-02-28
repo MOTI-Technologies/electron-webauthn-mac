@@ -147,9 +147,8 @@ private:
                     Napi::HandleScope scope(napi_env);
                     if (asyncData->hasError) {
                         Napi::Error napiError = Napi::Error::New(napi_env, asyncData->error);
-                        if (!asyncData->errorCode.empty()) {
-                            napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, asyncData->errorCode));
-                        }
+                        std::string code = asyncData->errorCode.empty() ? "unknown" : asyncData->errorCode;
+                        napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, code));
                         asyncData->deferred->Reject(napiError.Value());
                     } else {
                         Napi::Object result = NSDictionaryToNapiObject(napi_env, asyncData->result);
@@ -217,9 +216,8 @@ private:
                     Napi::HandleScope scope(napi_env);
                     if (asyncData->hasError) {
                         Napi::Error napiError = Napi::Error::New(napi_env, asyncData->error);
-                        if (!asyncData->errorCode.empty()) {
-                            napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, asyncData->errorCode));
-                        }
+                        std::string code = asyncData->errorCode.empty() ? "unknown" : asyncData->errorCode;
+                        napiError.Value().As<Napi::Object>().Set("code", Napi::String::New(napi_env, code));
                         asyncData->deferred->Reject(napiError.Value());
                     } else {
                         Napi::Object result = NSDictionaryToNapiObject(napi_env, asyncData->result);

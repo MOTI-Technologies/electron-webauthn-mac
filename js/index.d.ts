@@ -189,9 +189,9 @@ export interface PlatformRegistrationCredential {
   type: 'platform';
   /** Base64-encoded credential ID - unique identifier for this credential */
   credentialID: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   id: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   rawId: string;
   /**
    * Base64-encoded CBOR (Concise Binary Object Representation) with:
@@ -238,9 +238,9 @@ export interface SecurityKeyRegistrationCredential {
   type: 'securityKey';
   /** Base64-encoded credential ID - unique identifier for this credential */
   credentialID: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   id: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   rawId: string;
   /**
    * Base64-encoded CBOR (Concise Binary Object Representation) with:
@@ -278,9 +278,9 @@ export interface PlatformAssertionCredential {
   userID: string;
   /** Base64-encoded credential ID that was used for authentication */
   credentialID: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   id: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   rawId: string;
   /** Base64-encoded authenticator data (rpIdHash, flags, signCount, extensions) */
   authenticatorData: string;
@@ -293,7 +293,7 @@ export interface PlatformAssertionCredential {
     clientDataJSON: string;
     authenticatorData: string;
     signature: string;
-    userHandle: string;
+    userHandle?: string | null;
   };
   /**
    * Authenticator attachment type: 'platform' or 'crossPlatform'
@@ -329,9 +329,9 @@ export interface SecurityKeyAssertionCredential {
   userID: string;
   /** Base64-encoded credential ID that was used for authentication */
   credentialID: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   id: string;
-  /** Alias of credentialID */
+  /** Base64-encoded alias of credentialID (convert to base64url as needed) */
   rawId: string;
   /** Base64-encoded authenticator data (rpIdHash, flags, signCount, extensions) */
   authenticatorData: string;
@@ -344,7 +344,7 @@ export interface SecurityKeyAssertionCredential {
     clientDataJSON: string;
     authenticatorData: string;
     signature: string;
-    userHandle: string;
+    userHandle?: string | null;
   };
   /**
    * Whether legacy FIDO U2F appID extension was used

@@ -236,8 +236,8 @@ Creates a new passkey credential using Touch ID, iCloud Keychain, or an external
 {
   type: "platform",
   credentialID: string,           // Base64-encoded credential ID
-  id: string,                     // Alias of credentialID
-  rawId: string,                  // Alias of credentialID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   attestationObject: string,      // Base64-encoded CBOR attestation
   clientDataJSON: string,         // Base64-encoded client data
   response: {                     // WebAuthn-style alias payload
@@ -258,8 +258,8 @@ Creates a new passkey credential using Touch ID, iCloud Keychain, or an external
 {
   type: "securityKey",
   credentialID: string,           // Base64-encoded credential ID
-  id: string,                     // Alias of credentialID
-  rawId: string,                  // Alias of credentialID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   attestationObject: string,      // Base64-encoded CBOR attestation
   clientDataJSON: string,         // Base64-encoded client data
   response: {                     // WebAuthn-style alias payload
@@ -298,8 +298,8 @@ Authenticates a user using an existing passkey.
   type: "platform",
   userID: string,                 // Base64-encoded user handle
   credentialID: string,           // Base64-encoded credential ID
-  id: string,                     // Alias of credentialID
-  rawId: string,                  // Alias of credentialID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   authenticatorData: string,      // Base64-encoded authenticator data
   clientDataJSON: string,         // Base64-encoded client data
   signature: string,              // Base64-encoded signature
@@ -307,7 +307,7 @@ Authenticates a user using an existing passkey.
     clientDataJSON: string,
     authenticatorData: string,
     signature: string,
-    userHandle: string
+    userHandle?: string | null
   },
   attachment?: string,            // "platform" or "crossPlatform" (macOS 13.5+)
   authenticatorAttachment?: string, // Alias of attachment
@@ -324,8 +324,8 @@ Authenticates a user using an existing passkey.
   type: "securityKey",
   userID: string,                 // Base64-encoded user handle
   credentialID: string,           // Base64-encoded credential ID
-  id: string,                     // Alias of credentialID
-  rawId: string,                  // Alias of credentialID
+  id: string,                     // Base64-encoded alias of credentialID (convert to base64url as needed)
+  rawId: string,                  // Base64-encoded alias of credentialID (convert to base64url as needed)
   authenticatorData: string,      // Base64-encoded authenticator data
   clientDataJSON: string,         // Base64-encoded client data
   signature: string,              // Base64-encoded signature
@@ -333,7 +333,7 @@ Authenticates a user using an existing passkey.
     clientDataJSON: string,
     authenticatorData: string,
     signature: string,
-    userHandle: string
+    userHandle?: string | null
   },
   appID?: boolean                 // Whether legacy FIDO U2F appID was used (macOS 14.5+)
 }
